@@ -69,3 +69,13 @@ DerivedData/
 .swiftpm/configuration/registries.json
 .swiftpm/xcode/package.xcworkspace/contents.xcworkspacedata
 .netrc
+
+.venv
+
+*.egg-info/
+*.egg-info
+__pycache__/
+*.py[cod]
+
+Benchtest/outputs/
+.idea/

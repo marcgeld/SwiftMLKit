@@ -56,7 +56,7 @@ let package = Package(
             dependencies: [
                 "SwiftMLKit"
             ],
-            path: "Tests/swiftmlxTests"
+            path: "Tests/SwiftMLKitTests"
         ),
     ],
     swiftLanguageModes: [.v6]

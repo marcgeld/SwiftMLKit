@@ -104,6 +104,15 @@ The included `SwiftMLKitExample` target trains all 10 models on the Breast Cance
 swift run SwiftMLKitExample
 ```
 
+Clean rebuild (as `release`)
+
+```bash
+rm -rf .build
+swift package resolve
+swift build -c release
+swift run -c release
+```
+
 ## License
 
 MIT
