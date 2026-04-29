@@ -1,6 +1,6 @@
 //
 //  GaussianNaiveBayes.swift
-//  swiftmlx
+//  SwiftMLKit
 //
 //  Created by Marcus Gelderman on 2026-04-28.
 //
@@ -30,8 +30,8 @@ public struct GaussianNaiveBayes: Classifier {
 
         for c in classes {
 
-            let mask = (yFlat .== c)
-            let Xc = X[mask]
+            let idx = maskToIndices(yFlat .== c)
+            let Xc = X[idx]
 
             let mean = Xc.mean(axis: 0)
             let variance = ((Xc - mean) * (Xc - mean)).mean(axis: 0) + epsilon

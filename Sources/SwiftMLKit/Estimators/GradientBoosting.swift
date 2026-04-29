@@ -1,3 +1,10 @@
+//
+//  GradientBoosting.swift
+//  SwiftMLKit
+//
+//  Created by Marcus Gelderman on 2026-04-28.
+//
+
 import MLX
 
 public struct GradientBoosting: Classifier {

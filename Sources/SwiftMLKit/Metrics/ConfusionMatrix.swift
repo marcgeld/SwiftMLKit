@@ -53,6 +53,23 @@ public struct ConfusionMatrix {
             let denom = p + r
             return denom > 0 ? 2 * (p * r) / denom : 0
         }
+
+        public var specificity: Float {
+            let denom = TN + FP
+            return denom > 0 ? Float(TN) / Float(denom) : 0
+        }
+
+        public var balancedAccuracy: Float {
+            (recall + specificity) / 2.0
+        }
+
+        public var mcc: Float {
+            let tp = Double(TP), tn = Double(TN)
+            let fp = Double(FP), fn = Double(FN)
+            let num = tp * tn - fp * fn
+            let denom = ((tp + fp) * (tp + fn) * (tn + fp) * (tn + fn)).squareRoot()
+            return denom > 0 ? Float(num / denom) : 0
+        }
     }
 
     // MARK: - Compute

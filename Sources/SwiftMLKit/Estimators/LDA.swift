@@ -1,10 +1,9 @@
 //
 //  LDA.swift
-//  swiftmlx
+//  SwiftMLKit
 //
 //  Created by Marcus Gelderman on 2026-04-28.
 //
-
 
 import MLX
 
@@ -32,8 +31,8 @@ public struct LDA: Classifier {
 
         for c in classes {
 
-            let mask = (yFlat .== c)
-            let Xc = X[mask]
+            let idx = maskToIndices(yFlat .== c)
+            let Xc = X[idx]
 
             let mean = Xc.mean(axis: 0)
             means.append(mean)

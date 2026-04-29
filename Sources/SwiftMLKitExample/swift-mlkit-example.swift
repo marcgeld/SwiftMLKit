@@ -12,171 +12,217 @@ import TabularData
 
 @main
 struct swiftmlx {
-    
+
     static func loadData() throws -> (MLXArray, MLXArray) {
         let url = Bundle.module.url(forResource: "breast_cancer", withExtension: "csv")!
-        
-        //let url = URL(fileURLWithPath: "Data/breast_cancer.csv")
         let df = try DataFrame(contentsOfCSVFile: url)
-        print(df)
-        //print(df.prefix(5))
-        //print(df.columns.map(\.name))
+
         print("Rows:", df.rows.count)
         print("Columns:", df.columns.count)
-        
-        // Labels: Tensor av rang 1, vektor
+
+        // Labels: M → 1.0, B → 0.0
         let labels: [Float32] = df["diagnosis"].map {
             ($0 as! String == "M") ? 1.0 : 0.0
         }
         let y = MLXArray(labels)
-        
-        // Features (droppa id + diagnosis = börja på index 2)
+
+        // Features (drop id + diagnosis)
         let featureColumns =
-        df.columns.filter { $0.name != "id" && $0.name != "diagnosis" }
-        
-        // Features: Tensor av rang 2, matris
+            df.columns.filter { $0.name != "id" && $0.name != "diagnosis" }
+
         var features: [Float32] = []
         features.reserveCapacity(df.rows.count * featureColumns.count)
-        
+
         for row in df.rows {
             for col in featureColumns {
                 features.append(Float32(row[col.name] as! Double))
             }
         }
-        
+
         let X = MLXArray(features).reshaped([df.rows.count, featureColumns.count])
-        
-        // Check shape
+
         precondition(X.shape == [569, 30])
         precondition(y.shape == [569])
-        
-        // Normalisera Data
-        let mean = X.mean(axis: 0)
-        let variance = ((X - mean) * (X - mean)).mean(axis: 0)
-        // Ett väldigt litet tal, men inte noll
-        let std = sqrt(variance + 1e-8)
-        let Xnorm = (X - mean) / std
-        
-        return (Xnorm, y)
+
+        // Return raw data — StandardScaler in Pipeline handles normalization
+        return (X, y)
     }
-    
+
+    struct ModelResult {
+        let name: String
+        let cm: ConfusionMatrix.Result
+        let trainTimeSec: Double
+        let inferenceTimeSec: Double
+    }
+
     static func main() throws {
-        
+
         try Device.withDefaultDevice(.cpu) {
-            
+
             print("Device:", Device.defaultDevice)
-            
+
             // MARK: - Load data
             let (X, y): (MLXArray, MLXArray) = try loadData()
-            
+
             print("X shape:", X.shape)
             print("y shape:", y.shape)
-            
+
             // Ensure y has shape [N, 1]
             let y2 = y.reshaped([y.shape[0], 1])
-            
-            // MARK: - Train/Test split (80/20)
-            
-            let n = X.shape[0]
-            let split = Int(Double(n) * 0.8)
-            
-            let Xtrain = X[0..<split]
-            let ytrain = y2[0..<split]
-            
-            let Xtest  = X[split..<n]
-            let ytest  = y2[split..<n]
-            
+
+            // MARK: - Train/Test split (80/20, stratified, seeded)
+            let splitResult = trainTestSplit(
+                X: X, y: y2,
+                testSize: 0.2,
+                randomState: 42,
+                stratify: true
+            )
+            let Xtrain = splitResult.Xtrain
+            let ytrain = splitResult.ytrain
+            let Xtest  = splitResult.Xtest
+            let ytest  = splitResult.ytest
+
+            print("Train: \(Xtrain.shape[0]), Test: \(Xtest.shape[0])")
+
             // MARK: - SVM requires {-1, +1}
-            
             let ytrainSVM = 2 * ytrain - 1
             let ytestSVM  = 2 * ytest - 1
-            
+
             // MARK: - Models
+            // Names match Python benchtest for compare-swift
             let models: [(String, any Model, MLXArray, MLXArray)] = [
-                
+
                 ("Logistic Regression",
                  LogisticRegression(inputSize: X.shape[1], epochs: 500, learningRate: 0.01),
                  ytrain, ytest),
-                
-                ("SVM",
+
+                ("SVM (Linear)",
                  SVM(inputSize: X.shape[1], epochs: 500, learningRate: 0.01),
                  ytrainSVM, ytestSVM),
-                
+
                 ("KNN",
                  KNN(k: 5),
                  ytrain, ytest),
-                
+
                 ("Naive Bayes",
                  GaussianNaiveBayes(),
                  ytrain, ytest),
-                
+
                 ("LDA",
                  LDA(),
                  ytrain, ytest),
-                
+
                 ("QDA",
                  QDA(),
                  ytrain, ytest),
-                
-                // Tree-based models 🌲
+
                 ("Decision Tree",
                  DecisionTree(maxDepth: 5),
                  ytrain, ytest),
-                
+
                 ("Random Forest",
                  RandomForest(nTrees: 20, maxDepth: 5),
                  ytrain, ytest),
-                
+
                 ("Extra Trees",
                  ExtraTrees(nTrees: 20, maxDepth: 5),
                  ytrain, ytest),
-                
+
                 ("Gradient Boosting",
                  GradientBoosting(nEstimators: 20, learningRate: 0.1),
                  ytrain, ytest)
             ]
-            
-            // MARK: - Loop models
+
+            // MARK: - Evaluate all models
+            var results: [ModelResult] = []
+
             for (name, baseModel, ytr, yte) in models {
-                
+
                 print("\n--- \(name) ---")
-                
-                // Important: copy model (value semantics)
+
                 let model = baseModel
-                
+
                 var pipeline = Pipeline(steps: [
                     .transformer(StandardScaler()),
                     .model(model)
                 ])
-                
-                // Train
+
+                // Train (timed)
+                let trainStart = CFAbsoluteTimeGetCurrent()
                 pipeline.fit(X: Xtrain, y: ytr)
-                
-                // Predict
+                let trainTime = CFAbsoluteTimeGetCurrent() - trainStart
+
+                // Predict (timed)
+                let inferStart = CFAbsoluteTimeGetCurrent()
                 let predsRaw = pipeline.predict(X: Xtest)
-                
+                let inferTime = CFAbsoluteTimeGetCurrent() - inferStart
+
                 // Convert predictions for metrics (SVM → 0/1)
-                let preds: MLXArray = (name == "SVM")
-                ? `where`(predsRaw .> 0, MLXArray(1), MLXArray(0))
-                : predsRaw
-                
+                let preds: MLXArray = (name == "SVM (Linear)")
+                    ? `where`(predsRaw .> 0, MLXArray(1), MLXArray(0))
+                    : predsRaw
+
                 // Metrics ALWAYS use 0/1 labels
-                let yEval: MLXArray = (name == "SVM")
-                ? `where`(yte .> 0, MLXArray(1), MLXArray(0))
-                : yte
-                
+                let yEval: MLXArray = (name == "SVM (Linear)")
+                    ? `where`(yte .> 0, MLXArray(1), MLXArray(0))
+                    : yte
+
                 let cm = ConfusionMatrix().compute(yEval, preds)
-                
+
+                results.append(ModelResult(
+                    name: name,
+                    cm: cm,
+                    trainTimeSec: trainTime,
+                    inferenceTimeSec: inferTime
+                ))
+
                 print("""
-              Accuracy:  \(cm.accuracy)
-              Precision: \(cm.precision)
-              Recall:    \(cm.recall)
-              F1:        \(cm.f1)
-            
-              TP: \(cm.TP)  TN: \(cm.TN)
-              FP: \(cm.FP)  FN: \(cm.FN)
-            """)
+                  Accuracy:         \(String(format: "%.4f", cm.accuracy))
+                  Precision:        \(String(format: "%.4f", cm.precision))
+                  Recall:           \(String(format: "%.4f", cm.recall))
+                  F1:               \(String(format: "%.4f", cm.f1))
+                  BalancedAccuracy: \(String(format: "%.4f", cm.balancedAccuracy))
+                  Specificity:      \(String(format: "%.4f", cm.specificity))
+                  MCC:              \(String(format: "%.4f", cm.mcc))
+                  TrainTime:        \(String(format: "%.4f", trainTime))s
+                  InferenceTime:    \(String(format: "%.4f", inferTime))s
+                  TP: \(cm.TP)  TN: \(cm.TN)  FP: \(cm.FP)  FN: \(cm.FN)
+                """)
             }
+
+            // MARK: - Write metrics.csv (compatible with Python compare-swift)
+            let header = "Model,Status,Accuracy,Precision,Recall,F1,BalancedAccuracy,Specificity,MCC,AUC,TrainTimeSec,InferenceTimeSec,TN,FP,FN,TP"
+
+            var csvLines = [header]
+            for r in results {
+                let line = [
+                    r.name,
+                    "ok",
+                    String(format: "%.6f", r.cm.accuracy),
+                    String(format: "%.6f", r.cm.precision),
+                    String(format: "%.6f", r.cm.recall),
+                    String(format: "%.6f", r.cm.f1),
+                    String(format: "%.6f", r.cm.balancedAccuracy),
+                    String(format: "%.6f", r.cm.specificity),
+                    String(format: "%.6f", r.cm.mcc),
+                    "",  // AUC — not yet implemented
+                    String(format: "%.6f", r.trainTimeSec),
+                    String(format: "%.6f", r.inferenceTimeSec),
+                    String(r.cm.TN),
+                    String(r.cm.FP),
+                    String(r.cm.FN),
+                    String(r.cm.TP),
+                ].joined(separator: ",")
+                csvLines.append(line)
+            }
+
+            let csvContent = csvLines.joined(separator: "\n") + "\n"
+
+            let outputDir = FileManager.default.currentDirectoryPath
+            let csvPath = (outputDir as NSString).appendingPathComponent("swift_metrics.csv")
+            try csvContent.write(toFile: csvPath, atomically: true, encoding: .utf8)
+            print("\n✅ Metrics written to: \(csvPath)")
+            print("   Use: python main.py compare-swift --python-metrics <run>/metrics.csv --swift-metrics \(csvPath)")
         }
     }
 }

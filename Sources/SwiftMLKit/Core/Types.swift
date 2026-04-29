@@ -91,6 +91,20 @@ public struct ConfusionMatrixResult {
     }
 }
 
+// MARK: - Boolean mask → Int32 indices
+// MLX Gather does not support boolean indexing on all array types.
+// This converts a boolean mask to int32 indices for safe fancy indexing.
+public func maskToIndices(_ mask: MLXArray) -> MLXArray {
+    let flat = mask.flattened().asType(.uint8)
+    let vals: [UInt8] = flat.asArray(UInt8.self)
+    var indices: [Int32] = []
+    indices.reserveCapacity(vals.count)
+    for (i, v) in vals.enumerated() {
+        if v != 0 { indices.append(Int32(i)) }
+    }
+    return MLXArray(indices)
+}
+
 // MARK: - Hyperparameter (future use)
 /// Generic hyperparameter container (useful for GridSearch later).
 public struct Hyperparameter<T> {

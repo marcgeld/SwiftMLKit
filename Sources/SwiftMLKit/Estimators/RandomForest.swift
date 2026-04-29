@@ -1,10 +1,9 @@
 //
 //  RandomForest.swift
-//  swiftmlx
+//  SwiftMLKit
 //
 //  Created by Marcus Gelderman on 2026-04-28.
 //
-
 
 import MLX
 
@@ -25,9 +24,9 @@ public struct RandomForest: Classifier {
 
         for _ in 0..<nTrees {
 
-            let indices = (0..<X.shape[0]).map { _ in Int.random(in: 0..<X.shape[0]) }
-            let Xb = X[indices]
-            let yb = y[indices]
+            let bootIdx = MLXArray((0..<X.shape[0]).map { _ in Int32.random(in: 0..<Int32(X.shape[0])) })
+            let Xb = X[bootIdx]
+            let yb = y[bootIdx]
 
             var tree = DecisionTree(maxDepth: maxDepth)
             tree.fit(X: Xb, y: yb)
