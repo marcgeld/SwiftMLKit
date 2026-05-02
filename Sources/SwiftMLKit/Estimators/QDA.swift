@@ -16,8 +16,11 @@ public struct QDA: Classifier {
     private var means: [MLXArray] = []
     private var covs: [MLXArray] = []
     private var priors: [Float] = []
+    private let regParam: Float
 
-    public init() {}
+    public init(regParam: Float = 0.0) {
+        self.regParam = regParam
+    }
 
     // MARK: - Fit
 
@@ -37,7 +40,9 @@ public struct QDA: Classifier {
             let centered = Xc - mean
             let cov = matmul(centered.T, centered) / Float(Xc.shape[0])
 
-            covs.append(cov + 1e-6)
+            let eye = MLXArray.eye(Xc.shape[1])
+            let regCov = (1 - regParam) * cov + regParam * eye + Float(1e-6) * eye
+            covs.append(regCov)
 
             let prior = Float(Xc.shape[0]) / Float(X.shape[0])
             priors.append(prior)
@@ -55,10 +60,10 @@ public struct QDA: Classifier {
             let mean = means[i]
             let cov = covs[i]
 
-            let invCov = inv(cov)
+            let invCov = inv(cov, stream: .cpu)
 
             // log(det(cov)) via Cholesky: 2 * sum(log(diag(L)))
-            let L = cholesky(cov)
+            let L = cholesky(cov, stream: .cpu)
             let logDet = 2 * log(L.diagonal()).sum()
 
             let diff = X - mean

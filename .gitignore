@@ -78,7 +78,9 @@ __pycache__/
 *.py[cod]
 
 Benchtest/outputs/
+Benchtest/cache/
 .idea/
 
 
 build/
+

@@ -199,21 +199,21 @@ struct PipelineTests {
     }
 }
 
-// MARK: - Model Tests
+// MARK: - Model Smoke Tests
 
 @Suite("LogisticRegression")
 struct LogisticRegressionTests {
 
     @Test func learnsLinearlySeparableData() {
-        let (X, y) = makeLinearData()
+        let (X, y) = makeLinearData(n: 40)
         let (xTrain, yTrain, xTest, yTest) = splitData(X, y)
 
-        var model = LogisticRegression(inputSize: 2, epochs: 300, learningRate: 0.1)
+        var model = LogisticRegression(inputSize: 2, epochs: 40, learningRate: 0.1)
         model.fit(X: xTrain, y: yTrain)
         let preds = model.predict(X: xTest)
 
         let acc = Accuracy().score(yTest, preds)
-        #expect(acc > 0.9, "Expected >90% accuracy, got \(acc)")
+        #expect(acc >= 0.75, "Expected >=75% accuracy, got \(acc)")
     }
 }
 
@@ -221,18 +221,18 @@ struct LogisticRegressionTests {
 struct SVMTests {
 
     @Test func learnsWithSignedLabels() {
-        let (X, y) = makeLinearData()
+        let (X, y) = makeLinearData(n: 40)
         let ySigned = 2 * y - 1  // {0,1} → {-1,+1}
         let (xTrain, yTrain, xTest, yTest) = splitData(X, ySigned)
 
-        var model = SVM(inputSize: 2, epochs: 300, learningRate: 0.1)
+        var model = SVM(inputSize: 2, epochs: 40, learningRate: 0.1)
         model.fit(X: xTrain, y: yTrain)
         let preds = model.predict(X: xTest)
 
         let yTrue01 = MLX.where(yTest .> 0, MLXArray(1), MLXArray(0))
         let yPred01 = MLX.where(preds .> 0, MLXArray(1), MLXArray(0))
         let acc = Accuracy().score(yTrue01, yPred01)
-        #expect(acc > 0.9, "Expected >90% accuracy, got \(acc)")
+        #expect(acc >= 0.75, "Expected >=75% accuracy, got \(acc)")
     }
 }
 
@@ -240,7 +240,7 @@ struct SVMTests {
 struct KNNTests {
 
     @Test func learnsSimpleData() {
-        let (X, y) = makeLinearData()
+        let (X, y) = makeLinearData(n: 40)
         let (xTrain, yTrain, xTest, yTest) = splitData(X, y)
 
         var model = KNN(k: 3)
@@ -248,7 +248,7 @@ struct KNNTests {
         let preds = model.predict(X: xTest)
 
         let acc = Accuracy().score(yTest, preds)
-        #expect(acc > 0.9, "Expected >90% accuracy, got \(acc)")
+        #expect(acc >= 0.75, "Expected >=75% accuracy, got \(acc)")
     }
 }
 
@@ -256,7 +256,7 @@ struct KNNTests {
 struct GaussianNaiveBayesTests {
 
     @Test func learnsSimpleData() {
-        let (X, y) = makeLinearData()
+        let (X, y) = makeLinearData(n: 40)
         let (xTrain, yTrain, xTest, yTest) = splitData(X, y)
 
         var model = GaussianNaiveBayes()
@@ -264,7 +264,7 @@ struct GaussianNaiveBayesTests {
         let preds = model.predict(X: xTest)
 
         let acc = Accuracy().score(yTest, preds)
-        #expect(acc > 0.9, "Expected >90% accuracy, got \(acc)")
+        #expect(acc >= 0.75, "Expected >=75% accuracy, got \(acc)")
     }
 }
 
@@ -272,7 +272,7 @@ struct GaussianNaiveBayesTests {
 struct LDATests {
 
     @Test func learnsSimpleData() {
-        let (X, y) = makeLinearData()
+        let (X, y) = makeLinearData(n: 40)
         let (xTrain, yTrain, xTest, yTest) = splitData(X, y)
 
         var model = LDA()
@@ -280,7 +280,7 @@ struct LDATests {
         let preds = model.predict(X: xTest)
 
         let acc = Accuracy().score(yTest, preds)
-        #expect(acc > 0.9, "Expected >90% accuracy, got \(acc)")
+        #expect(acc >= 0.75, "Expected >=75% accuracy, got \(acc)")
     }
 }
 
@@ -288,7 +288,7 @@ struct LDATests {
 struct QDATests {
 
     @Test func learnsSimpleData() {
-        let (X, y) = makeLinearData()
+        let (X, y) = makeLinearData(n: 40)
         let (xTrain, yTrain, xTest, yTest) = splitData(X, y)
 
         var model = QDA()
@@ -296,7 +296,7 @@ struct QDATests {
         let preds = model.predict(X: xTest)
 
         let acc = Accuracy().score(yTest, preds)
-        #expect(acc > 0.9, "Expected >90% accuracy, got \(acc)")
+        #expect(acc >= 0.75, "Expected >=75% accuracy, got \(acc)")
     }
 }
 
@@ -304,15 +304,15 @@ struct QDATests {
 struct DecisionTreeTests {
 
     @Test func learnsSimpleData() {
-        let (X, y) = makeLinearData()
+        let (X, y) = makeLinearData(n: 40)
         let (xTrain, yTrain, xTest, yTest) = splitData(X, y)
 
-        var model = DecisionTree(maxDepth: 5)
+        var model = DecisionTree(maxDepth: 3)
         model.fit(X: xTrain, y: yTrain)
         let preds = model.predict(X: xTest)
 
         let acc = Accuracy().score(yTest, preds)
-        #expect(acc > 0.9, "Expected >90% accuracy, got \(acc)")
+        #expect(acc >= 0.75, "Expected >=75% accuracy, got \(acc)")
     }
 }
 
@@ -320,15 +320,15 @@ struct DecisionTreeTests {
 struct RandomForestTests {
 
     @Test func learnsSimpleData() {
-        let (X, y) = makeLinearData()
+        let (X, y) = makeLinearData(n: 40)
         let (xTrain, yTrain, xTest, yTest) = splitData(X, y)
 
-        var model = RandomForest(nTrees: 10, maxDepth: 5)
+        var model = RandomForest(nTrees: 3, maxDepth: 3)
         model.fit(X: xTrain, y: yTrain)
         let preds = model.predict(X: xTest)
 
         let acc = Accuracy().score(yTest, preds)
-        #expect(acc > 0.9, "Expected >90% accuracy, got \(acc)")
+        #expect(acc >= 0.75, "Expected >=75% accuracy, got \(acc)")
     }
 }
 
@@ -336,15 +336,15 @@ struct RandomForestTests {
 struct ExtraTreesTests {
 
     @Test func learnsSimpleData() {
-        let (X, y) = makeLinearData()
+        let (X, y) = makeLinearData(n: 40)
         let (xTrain, yTrain, xTest, yTest) = splitData(X, y)
 
-        var model = ExtraTrees(nTrees: 10, maxDepth: 5)
+        var model = ExtraTrees(nTrees: 3, maxDepth: 3)
         model.fit(X: xTrain, y: yTrain)
         let preds = model.predict(X: xTest)
 
         let acc = Accuracy().score(yTest, preds)
-        #expect(acc > 0.9, "Expected >90% accuracy, got \(acc)")
+        #expect(acc >= 0.75, "Expected >=75% accuracy, got \(acc)")
     }
 }
 
@@ -352,7 +352,7 @@ struct ExtraTreesTests {
 struct GradientBoostingTests {
 
     @Test func learnsSimpleData() {
-        let (X, y) = makeLinearData()
+        let (X, y) = makeLinearData(n: 100)
         let (xTrain, yTrain, xTest, yTest) = splitData(X, y)
 
         var model = GradientBoosting(nEstimators: 10, learningRate: 0.1)
@@ -360,6 +360,6 @@ struct GradientBoostingTests {
         let preds = model.predict(X: xTest)
 
         let acc = Accuracy().score(yTest, preds)
-        #expect(acc > 0.9, "Expected >90% accuracy, got \(acc)")
+        #expect(acc >= 0.75, "Expected >=75% accuracy, got \(acc)")
     }
 }

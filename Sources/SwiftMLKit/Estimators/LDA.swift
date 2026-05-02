@@ -45,7 +45,8 @@ public struct LDA: Classifier {
         }
 
         cov /= Float(X.shape[0])
-        invCov = inv(cov + 1e-6)
+        let reg = Float(1e-6) * MLXArray.eye(X.shape[1])
+        invCov = inv(cov + reg, stream: .cpu)
     }
 
     // MARK: - Predict

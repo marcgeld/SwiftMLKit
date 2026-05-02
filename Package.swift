@@ -17,6 +17,10 @@ let package = Package(
         .executable(
             name: "SwiftMLKitExample",
             targets: ["SwiftMLKitExample"]
+        ),
+        .executable(
+            name: "SwiftMLKitBenchmarks",
+            targets: ["SwiftMLKitBenchmarks"]
         )
     ],
     dependencies: [
@@ -47,6 +51,15 @@ let package = Package(
             ],
             resources: [
                 .process("Resources")
+            ]
+        ),
+
+        // MARK: - Benchmarks
+        .executableTarget(
+            name: "SwiftMLKitBenchmarks",
+            dependencies: [
+                "SwiftMLKit",
+                .product(name: "MLX", package: "mlx-swift"),
             ]
         ),
 

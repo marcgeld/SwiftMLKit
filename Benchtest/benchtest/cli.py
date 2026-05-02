@@ -2,6 +2,7 @@ import argparse
 import sys
 from pathlib import Path
 
+from .cache_generator import DEFAULT_SEED, generate_cache_files
 from .config import BenchmarkConfig
 from .data import load_tumor_data, make_split
 from .evaluate import evaluate_models
@@ -28,6 +29,13 @@ def _build_parser() -> argparse.ArgumentParser:
     compare_parser.add_argument("--python-metrics", type=Path, required=True, help="Path to Python metrics (.csv or .json).")
     compare_parser.add_argument("--swift-metrics", type=Path, required=True, help="Path to Swift metrics (.csv or .json).")
     compare_parser.add_argument("--output", type=Path, default=Path("outputs/swift_comparison.csv"), help="Output path for merged comparison CSV.")
+
+    cache_parser = subparsers.add_parser(
+        "generate-cache",
+        help="Generate deterministic scikit-learn cache files for Swift parity testing.",
+    )
+    cache_parser.add_argument("--output-dir", type=Path, default=Path("cache"), help="Directory for generated cache JSON files.")
+    cache_parser.add_argument("--seed", type=int, default=DEFAULT_SEED, help="Fixed seed for deterministic train/test split and estimators.")
 
     return parser
 
@@ -115,6 +123,14 @@ def _compare_swift(args: argparse.Namespace) -> int:
     return 0
 
 
+def _generate_cache(args: argparse.Namespace) -> int:
+    written = generate_cache_files(output_dir=args.output_dir, seed=args.seed)
+    print("Deterministic cache generation complete.")
+    for path in written:
+        print(f"  - {path}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
@@ -123,6 +139,8 @@ def main(argv: list[str] | None = None) -> int:
         return _run_python(args)
     if args.command == "compare-swift":
         return _compare_swift(args)
+    if args.command == "generate-cache":
+        return _generate_cache(args)
 
     parser.error(f"Unknown command: {args.command}")
 

@@ -55,6 +55,43 @@ That's it. Trains and evaluates all 12 models using the Swift dataset and writes
 
 ## All CLI options
 
+### Generate parity cache (ground truth)
+
+```bash
+python main.py generate-cache
+```
+
+or:
+
+```bash
+uv run bench generate-cache
+```
+
+This command creates deterministic JSON cache files used as canonical references for Swift parity tests:
+
+- `cache/logistic_regression.json`
+- `cache/svm_linear.json`
+- `cache/svm_rbf.json`
+- `cache/knn.json`
+- `cache/decision_tree.json`
+- `cache/random_forest.json`
+- `cache/gradient_boosting.json`
+- `cache/extra_trees.json`
+- `cache/naive_bayes.json`
+- `cache/lda.json`
+- `cache/qda.json`
+- `cache/xgboost.json`
+
+Contract guarantees for cache files:
+
+- Fixed dataset: `sklearn.datasets.load_breast_cancer`
+- Fixed split: `train_test_split(..., random_state=42, stratify=y)`
+- Fixed estimators/hyperparameters per algorithm
+- `y_true` and `y_pred` are always integer arrays
+- All float values are rounded to 6 decimals
+- JSON output uses sorted keys for deterministic ordering
+- Timing fields are stable placeholders (`0.0`) so cache files are byte-for-byte reproducible
+
 ### Run Python benchmark
 
 ```bash
@@ -107,6 +144,21 @@ uv run bench compare-swift \
 | XGBoost | `eval_metric=logloss` |
 
 QDA uses `reg_param=0.01` to regularise the covariance matrix for high-dimensional/collinear data such as the WDBC breast cancer dataset.
+
+### Algorithms included in parity cache
+
+- `logistic_regression` (`LogisticRegression`)
+- `svm_linear` (`SVC(kernel="linear")`)
+- `svm_rbf` (`SVC(kernel="rbf")`)
+- `knn` (`KNeighborsClassifier`)
+- `decision_tree` (`DecisionTreeClassifier`)
+- `random_forest` (`RandomForestClassifier`)
+- `gradient_boosting` (`GradientBoostingClassifier`)
+- `extra_trees` (`ExtraTreesClassifier`)
+- `naive_bayes` (`GaussianNB`)
+- `lda` (`LinearDiscriminantAnalysis`)
+- `qda` (`QuadraticDiscriminantAnalysis`)
+- `xgboost` (`XGBClassifier`)
 
 ---
 

@@ -104,6 +104,12 @@ The included `SwiftMLKitExample` target trains all 10 models on the Breast Cance
 swift run SwiftMLKitExample
 ```
 
+Benchmark runs are split into a dedicated executable instead of the unit test target:
+
+```bash
+swift run SwiftMLKitBenchmarks
+```
+
 Clean rebuild (as `release`)
 
 ```bash
