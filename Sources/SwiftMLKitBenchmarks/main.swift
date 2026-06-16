@@ -77,7 +77,7 @@ private func runBenchmark(
 
     return BenchmarkResult(
         name: name,
-        accuracy: Accuracy().score(expected, predictions),
+        accuracy: Double(Accuracy().score(expected, predictions)),
         trainTime: trainTime,
         predictTime: predictTime
     )
@@ -86,44 +86,46 @@ private func runBenchmark(
 @main
 struct SwiftMLKitBenchmarks {
     static func main() {
-        let (X, y) = makeLinearData()
-        let (xTrain, yTrain, xTest, yTest) = splitData(X, y)
-        let yTrainSigned = 2 * yTrain - 1
-        let yTestSigned = 2 * yTest - 1
+        Device.withDefaultDevice(.cpu) {
+            let (X, y) = makeLinearData()
+            let (xTrain, yTrain, xTest, yTest) = splitData(X, y)
+            let yTrainSigned = 2 * yTrain - 1
+            let yTestSigned = 2 * yTest - 1
 
-        let runs: [(String, any Model, MLXArray, MLXArray)] = [
-            ("LogisticRegression", LogisticRegression(inputSize: 2, epochs: 300, learningRate: 0.1), yTrain, yTest),
-            ("SVM", SVM(inputSize: 2, epochs: 300, learningRate: 0.1), yTrainSigned, yTestSigned),
-            ("KNN", KNN(k: 3), yTrain, yTest),
-            ("GaussianNaiveBayes", GaussianNaiveBayes(), yTrain, yTest),
-            ("LDA", LDA(), yTrain, yTest),
-            ("QDA", QDA(), yTrain, yTest),
-            ("DecisionTree", DecisionTree(maxDepth: 5), yTrain, yTest),
-            ("RandomForest", RandomForest(nTrees: 10, maxDepth: 5), yTrain, yTest),
-            ("ExtraTrees", ExtraTrees(nTrees: 10, maxDepth: 5), yTrain, yTest),
-            ("GradientBoosting", GradientBoosting(nEstimators: 10, learningRate: 0.1), yTrain, yTest)
-        ]
+            let runs: [(String, any Model, MLXArray, MLXArray)] = [
+                ("LogisticRegression", LogisticRegression(inputSize: 2, epochs: 300, learningRate: 0.1), yTrain, yTest),
+                ("SVM", SVM(inputSize: 2, epochs: 300, learningRate: 0.1), yTrainSigned, yTestSigned),
+                ("KNN", KNN(k: 3), yTrain, yTest),
+                ("GaussianNaiveBayes", GaussianNaiveBayes(), yTrain, yTest),
+                ("LDA", LDA(), yTrain, yTest),
+                ("QDA", QDA(), yTrain, yTest),
+                ("DecisionTree", DecisionTree(maxDepth: 5), yTrain, yTest),
+                ("RandomForest", RandomForest(nTrees: 10, maxDepth: 5, randomState: 42), yTrain, yTest),
+                ("ExtraTrees", ExtraTrees(nTrees: 10, maxDepth: 5, randomState: 42), yTrain, yTest),
+                ("GradientBoosting", GradientBoosting(nEstimators: 10, learningRate: 0.1), yTrain, yTest)
+            ]
 
-        print("SwiftMLKit benchmarks on synthetic linear data")
-        print("Model | Accuracy | Train (s) | Predict (s)")
-        print("--- | ---: | ---: | ---:")
+            print("SwiftMLKit benchmarks on synthetic linear data")
+            print("Model | Accuracy | Train (s) | Predict (s)")
+            print("--- | ---: | ---: | ---:")
 
-        for (name, model, benchmarkYTrain, benchmarkYTest) in runs {
-            let result = runBenchmark(
-                name: name,
-                model: model,
-                xTrain: xTrain,
-                yTrain: benchmarkYTrain,
-                xTest: xTest,
-                yTest: benchmarkYTest
-            )
+            for (name, model, benchmarkYTrain, benchmarkYTest) in runs {
+                let result = runBenchmark(
+                    name: name,
+                    model: model,
+                    xTrain: xTrain,
+                    yTrain: benchmarkYTrain,
+                    xTest: xTest,
+                    yTest: benchmarkYTest
+                )
 
-            print(
-                "\(result.name) | " +
-                "\(String(format: "%.4f", result.accuracy)) | " +
-                "\(String(format: "%.4f", result.trainTime)) | " +
-                "\(String(format: "%.4f", result.predictTime))"
-            )
+                print(
+                    "\(result.name) | " +
+                    "\(String(format: "%.4f", result.accuracy)) | " +
+                    "\(String(format: "%.4f", result.trainTime)) | " +
+                    "\(String(format: "%.4f", result.predictTime))"
+                )
+            }
         }
     }
 }

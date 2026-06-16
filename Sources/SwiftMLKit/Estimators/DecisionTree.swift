@@ -50,6 +50,9 @@ public struct DecisionTree: Classifier {
     public let minSamplesSplit: Int
     public let minSamplesLeaf: Int
     public let minImpurityDecrease: Float
+    public let maxFeatures: Int?
+    public let randomThresholds: Bool
+    public let randomState: UInt64?
 
     private var nFeatures: Int = 0
     private var classValues: [Float] = []
@@ -59,12 +62,24 @@ public struct DecisionTree: Classifier {
         maxDepth: Int = 5,
         minSamplesSplit: Int = 2,
         minSamplesLeaf: Int = 1,
-        minImpurityDecrease: Float = 0.0
+        minImpurityDecrease: Float = 0.0,
+        maxFeatures: Int? = nil,
+        randomThresholds: Bool = false,
+        randomState: UInt64? = nil
     ) {
+        precondition(maxDepth >= 0, "maxDepth must be non-negative")
+        precondition(minSamplesSplit >= 2, "minSamplesSplit must be at least 2")
+        precondition(minSamplesLeaf >= 1, "minSamplesLeaf must be at least 1")
+        if let maxFeatures {
+            precondition(maxFeatures > 0, "maxFeatures must be greater than zero")
+        }
         self.maxDepth = maxDepth
         self.minSamplesSplit = minSamplesSplit
         self.minSamplesLeaf = minSamplesLeaf
         self.minImpurityDecrease = minImpurityDecrease
+        self.maxFeatures = maxFeatures
+        self.randomThresholds = randomThresholds
+        self.randomState = randomState
     }
 
     // MARK: - Fit
@@ -83,11 +98,13 @@ public struct DecisionTree: Classifier {
         classIndex = Dictionary(uniqueKeysWithValues: classValues.enumerated().map { ($1, $0) })
 
         let indices = Array(0..<nSamples)
+        var rng = randomState.map { SeededRandomNumberGenerator(seed: $0) }
         root = buildTree(
             xData: xData,
             yData: yData,
             indices: indices,
-            depth: 0
+            depth: 0,
+            rng: &rng
         )
     }
 
@@ -119,7 +136,8 @@ public struct DecisionTree: Classifier {
         xData: [Float],
         yData: [Float],
         indices: [Int],
-        depth: Int
+        depth: Int,
+        rng: inout SeededRandomNumberGenerator?
     ) -> Node {
 
         let counts = classCounts(yData: yData, indices: indices)
@@ -133,7 +151,8 @@ public struct DecisionTree: Classifier {
             xData: xData,
             yData: yData,
             indices: indices,
-            parentCounts: counts
+            parentCounts: counts,
+            rng: &rng
         ) else {
             return Node(prediction: prediction)
         }
@@ -160,14 +179,16 @@ public struct DecisionTree: Classifier {
             xData: xData,
             yData: yData,
             indices: leftIndices,
-            depth: depth + 1
+            depth: depth + 1,
+            rng: &rng
         )
 
         let right = buildTree(
             xData: xData,
             yData: yData,
             indices: rightIndices,
-            depth: depth + 1
+            depth: depth + 1,
+            rng: &rng
         )
 
         return Node(
@@ -202,7 +223,8 @@ public struct DecisionTree: Classifier {
         xData: [Float],
         yData: [Float],
         indices: [Int],
-        parentCounts: [Int]
+        parentCounts: [Int],
+        rng: inout SeededRandomNumberGenerator?
     ) -> Split? {
 
         let parentImpurity = gini(counts: parentCounts)
@@ -212,7 +234,7 @@ public struct DecisionTree: Classifier {
         var bestThreshold: Float = 0
         var bestDecrease: Float = 0
 
-        for feature in 0..<nFeatures {
+        for feature in featureCandidates(rng: &rng) {
 
             var sortedRows = indices.map { row -> (row: Int, value: Float, labelIndex: Int) in
                 let label = yData[row]
@@ -224,6 +246,30 @@ public struct DecisionTree: Classifier {
             }
 
             sortedRows.sort { $0.value < $1.value }
+
+            if randomThresholds {
+                let lower = sortedRows.first!.value
+                let upper = sortedRows.last!.value
+                if lower == upper {
+                    continue
+                }
+
+                let threshold = randomThreshold(lower: lower, upper: upper, rng: &rng)
+                let candidate = evaluateSplit(
+                    sortedRows: sortedRows,
+                    feature: feature,
+                    threshold: threshold,
+                    parentImpurity: parentImpurity,
+                    parentN: parentN
+                )
+
+                if let candidate, candidate.impurityDecrease > bestDecrease {
+                    bestDecrease = candidate.impurityDecrease
+                    bestFeature = candidate.feature
+                    bestThreshold = candidate.threshold
+                }
+                continue
+            }
 
             var leftCounts = Array(repeating: 0, count: classValues.count)
             var rightCounts = parentCounts
@@ -277,6 +323,81 @@ public struct DecisionTree: Classifier {
             feature: feature,
             threshold: bestThreshold,
             impurityDecrease: bestDecrease
+        )
+    }
+
+    private func featureCandidates(rng: inout SeededRandomNumberGenerator?) -> [Int] {
+        var features = Array(0..<nFeatures)
+
+        guard let maxFeatures else {
+            return features
+        }
+
+        let cappedMaxFeatures = min(max(maxFeatures, 1), nFeatures)
+        guard cappedMaxFeatures < nFeatures else {
+            return features
+        }
+
+        if var seeded = rng {
+            features.shuffle(using: &seeded)
+            rng = seeded
+        } else {
+            features.shuffle()
+        }
+
+        return Array(features.prefix(cappedMaxFeatures))
+    }
+
+    private func randomThreshold(
+        lower: Float,
+        upper: Float,
+        rng: inout SeededRandomNumberGenerator?
+    ) -> Float {
+        if var seeded = rng {
+            let value = Float.random(in: lower..<upper, using: &seeded)
+            rng = seeded
+            return value
+        }
+
+        return Float.random(in: lower..<upper)
+    }
+
+    private func evaluateSplit(
+        sortedRows: [(row: Int, value: Float, labelIndex: Int)],
+        feature: Int,
+        threshold: Float,
+        parentImpurity: Float,
+        parentN: Float
+    ) -> Split? {
+        var leftCounts = Array(repeating: 0, count: classValues.count)
+        var rightCounts = Array(repeating: 0, count: classValues.count)
+        var leftN = 0
+        var rightN = 0
+
+        for row in sortedRows {
+            if row.value <= threshold {
+                leftCounts[row.labelIndex] += 1
+                leftN += 1
+            } else {
+                rightCounts[row.labelIndex] += 1
+                rightN += 1
+            }
+        }
+
+        guard leftN >= minSamplesLeaf, rightN >= minSamplesLeaf else {
+            return nil
+        }
+
+        let leftImpurity = gini(counts: leftCounts)
+        let rightImpurity = gini(counts: rightCounts)
+        let weightedImpurity =
+            (Float(leftN) / parentN) * leftImpurity +
+            (Float(rightN) / parentN) * rightImpurity
+
+        return Split(
+            feature: feature,
+            threshold: threshold,
+            impurityDecrease: parentImpurity - weightedImpurity
         )
     }
 

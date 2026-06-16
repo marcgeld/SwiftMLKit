@@ -38,6 +38,10 @@ public struct SVM: Estimator, Predictor {
         learningRate: Float = 0.01,
         lambda: Float = 0.01
     ) {
+        precondition(inputSize > 0, "inputSize must be greater than zero")
+        precondition(epochs >= 0, "epochs must be non-negative")
+        precondition(learningRate > 0, "learningRate must be greater than zero")
+        precondition(lambda >= 0, "lambda must be non-negative")
         self.inputSize = inputSize
         self.epochs = epochs
         self.learningRate = learningRate
@@ -62,8 +66,16 @@ public struct SVM: Estimator, Predictor {
         verbose: Bool
     ) {
         precondition(
+            X.shape.count == 2 && X.shape[1] == inputSize,
+            "X must have shape [N, inputSize]"
+        )
+        precondition(
             y.shape.count == 2 && y.shape[1] == 1,
             "y must have shape [N, 1]"
+        )
+        precondition(
+            y.shape[0] == X.shape[0],
+            "X and y must have same number of rows"
         )
 
         let optimizer = SGD(learningRate: learningRate)
@@ -90,6 +102,10 @@ public struct SVM: Estimator, Predictor {
 
     // MARK: - Prediction
     public func predict(X: MLXArray) -> MLXArray {
+        precondition(
+            X.shape.count == 2 && X.shape[1] == inputSize,
+            "X must have shape [N, inputSize]"
+        )
         let logits = forward(X)
         return `where`(logits .> 0,
                        MLXArray(1),
@@ -98,7 +114,11 @@ public struct SVM: Estimator, Predictor {
 
     // MARK: - Decision function
     public func decisionFunction(X: MLXArray) -> MLXArray {
-        forward(X)
+        precondition(
+            X.shape.count == 2 && X.shape[1] == inputSize,
+            "X must have shape [N, inputSize]"
+        )
+        return forward(X)
     }
 
     // MARK: - Access learned parameters

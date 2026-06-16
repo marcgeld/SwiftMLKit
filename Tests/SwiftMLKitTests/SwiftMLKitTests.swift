@@ -36,9 +36,25 @@ private func splitData(_ X: MLXArray, _ y: MLXArray, trainRatio: Double = 0.8)
     return (X[0..<split], y[0..<split], X[split..<n], y[split..<n])
 }
 
+private func floatValues(_ array: MLXArray) -> [Float] {
+    array.asType(.float32).asArray(Float.self)
+}
+
+struct CPUDeviceTrait: SuiteTrait, TestTrait, TestScoping {
+    func provideScope(
+        for test: Test,
+        testCase: Test.Case?,
+        performing function: @Sendable () async throws -> Void
+    ) async throws {
+        try await Device.withDefaultDevice(.cpu) {
+            try await function()
+        }
+    }
+}
+
 // MARK: - StandardScaler Tests
 
-@Suite("StandardScaler")
+@Suite("StandardScaler", CPUDeviceTrait())
 struct StandardScalerTests {
 
     @Test func fitTransformProducesZeroMeanUnitVariance() {
@@ -85,7 +101,7 @@ struct StandardScalerTests {
 
 // MARK: - Accuracy Tests
 
-@Suite("Accuracy")
+@Suite("Accuracy", CPUDeviceTrait())
 struct AccuracyTests {
 
     @Test func perfectPredictions() {
@@ -111,7 +127,7 @@ struct AccuracyTests {
 
 // MARK: - ConfusionMatrix Tests
 
-@Suite("ConfusionMatrix")
+@Suite("ConfusionMatrix", CPUDeviceTrait())
 struct ConfusionMatrixTests {
 
     @Test func perfectBinaryClassification() {
@@ -149,7 +165,7 @@ struct ConfusionMatrixTests {
 
 // MARK: - BinaryCrossEntropy Tests
 
-@Suite("BinaryCrossEntropy")
+@Suite("BinaryCrossEntropy", CPUDeviceTrait())
 struct BinaryCrossEntropyTests {
 
     @Test func perfectLogitsGiveLowLoss() {
@@ -179,7 +195,7 @@ struct BinaryCrossEntropyTests {
 
 // MARK: - Pipeline Tests
 
-@Suite("Pipeline")
+@Suite("Pipeline", CPUDeviceTrait())
 struct PipelineTests {
 
     @Test func pipelineWithScalerAndModel() {
@@ -201,7 +217,7 @@ struct PipelineTests {
 
 // MARK: - Model Smoke Tests
 
-@Suite("LogisticRegression")
+@Suite("LogisticRegression", CPUDeviceTrait())
 struct LogisticRegressionTests {
 
     @Test func learnsLinearlySeparableData() {
@@ -217,7 +233,7 @@ struct LogisticRegressionTests {
     }
 }
 
-@Suite("SVM")
+@Suite("SVM", CPUDeviceTrait())
 struct SVMTests {
 
     @Test func learnsWithSignedLabels() {
@@ -236,7 +252,7 @@ struct SVMTests {
     }
 }
 
-@Suite("KNN")
+@Suite("KNN", CPUDeviceTrait())
 struct KNNTests {
 
     @Test func learnsSimpleData() {
@@ -252,7 +268,7 @@ struct KNNTests {
     }
 }
 
-@Suite("GaussianNaiveBayes")
+@Suite("GaussianNaiveBayes", CPUDeviceTrait())
 struct GaussianNaiveBayesTests {
 
     @Test func learnsSimpleData() {
@@ -268,7 +284,7 @@ struct GaussianNaiveBayesTests {
     }
 }
 
-@Suite("LDA")
+@Suite("LDA", CPUDeviceTrait())
 struct LDATests {
 
     @Test func learnsSimpleData() {
@@ -284,7 +300,7 @@ struct LDATests {
     }
 }
 
-@Suite("QDA")
+@Suite("QDA", CPUDeviceTrait())
 struct QDATests {
 
     @Test func learnsSimpleData() {
@@ -300,7 +316,7 @@ struct QDATests {
     }
 }
 
-@Suite("DecisionTree")
+@Suite("DecisionTree", CPUDeviceTrait())
 struct DecisionTreeTests {
 
     @Test func learnsSimpleData() {
@@ -316,7 +332,7 @@ struct DecisionTreeTests {
     }
 }
 
-@Suite("RandomForest")
+@Suite("RandomForest", CPUDeviceTrait())
 struct RandomForestTests {
 
     @Test func learnsSimpleData() {
@@ -332,7 +348,7 @@ struct RandomForestTests {
     }
 }
 
-@Suite("ExtraTrees")
+@Suite("ExtraTrees", CPUDeviceTrait())
 struct ExtraTreesTests {
 
     @Test func learnsSimpleData() {
@@ -348,7 +364,7 @@ struct ExtraTreesTests {
     }
 }
 
-@Suite("GradientBoosting")
+@Suite("GradientBoosting", CPUDeviceTrait())
 struct GradientBoostingTests {
 
     @Test func learnsSimpleData() {
@@ -361,5 +377,47 @@ struct GradientBoostingTests {
 
         let acc = Accuracy().score(yTest, preds)
         #expect(acc >= 0.75, "Expected >=75% accuracy, got \(acc)")
+    }
+}
+
+// MARK: - Determinism Tests
+
+@Suite("Determinism", CPUDeviceTrait())
+struct DeterminismTests {
+
+    @Test func trainTestSplitSameSeedProducesSameIndices() {
+        let (X, y) = makeLinearData(n: 40)
+
+        let first = trainTestSplit(X: X, y: y, testSize: 0.25, randomState: 123, stratify: true)
+        let second = trainTestSplit(X: X, y: y, testSize: 0.25, randomState: 123, stratify: true)
+
+        #expect(first.trainIndices == second.trainIndices)
+        #expect(first.testIndices == second.testIndices)
+    }
+
+    @Test func randomForestSameSeedProducesSamePredictions() {
+        let (X, y) = makeLinearData(n: 60)
+        let (xTrain, yTrain, xTest, _) = splitData(X, y)
+
+        var first = RandomForest(nTrees: 5, maxDepth: 3, randomState: 123)
+        var second = RandomForest(nTrees: 5, maxDepth: 3, randomState: 123)
+
+        first.fit(X: xTrain, y: yTrain)
+        second.fit(X: xTrain, y: yTrain)
+
+        #expect(floatValues(first.predict(X: xTest)) == floatValues(second.predict(X: xTest)))
+    }
+
+    @Test func extraTreesSameSeedProducesSamePredictions() {
+        let (X, y) = makeLinearData(n: 60)
+        let (xTrain, yTrain, xTest, _) = splitData(X, y)
+
+        var first = ExtraTrees(nTrees: 5, maxDepth: 3, randomState: 123)
+        var second = ExtraTrees(nTrees: 5, maxDepth: 3, randomState: 123)
+
+        first.fit(X: xTrain, y: yTrain)
+        second.fit(X: xTrain, y: yTrain)
+
+        #expect(floatValues(first.predict(X: xTest)) == floatValues(second.predict(X: xTest)))
     }
 }

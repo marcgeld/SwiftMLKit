@@ -22,11 +22,14 @@ public struct KNN: Classifier {
     public let k: Int
 
     public init(k: Int = 3) {
+        precondition(k > 0, "k must be greater than zero")
         self.k = k
     }
 
     // MARK: - Fit
     public mutating func fit(X: MLXArray, y: MLXArray) {
+        precondition(X.shape.count == 2, "X must be a 2D array")
+        precondition(y.shape[0] == X.shape[0], "X and y must have same number of rows")
         self.Xtrain = X
         self.ytrain = y
     }
@@ -37,6 +40,10 @@ public struct KNN: Classifier {
         guard let Xtrain, let ytrain else {
             fatalError("KNN not fitted")
         }
+
+        precondition(X.shape.count == 2, "X must be a 2D array")
+        precondition(X.shape[1] == Xtrain.shape[1], "X must have the same number of features as training data")
+        precondition(k <= Xtrain.shape[0], "k must be less than or equal to the number of training samples")
 
         let nTest = X.shape[0]
 

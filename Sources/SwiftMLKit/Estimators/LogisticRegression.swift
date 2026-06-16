@@ -24,6 +24,9 @@ public struct LogisticRegression: Estimator, Predictor {
         epochs: Int = 500,
         learningRate: Float = 0.01
     ) {
+        precondition(inputSize > 0, "inputSize must be greater than zero")
+        precondition(epochs >= 0, "epochs must be non-negative")
+        precondition(learningRate > 0, "learningRate must be greater than zero")
         self.inputSize = inputSize
         self.epochs = epochs
         self.learningRate = learningRate
@@ -43,8 +46,12 @@ public struct LogisticRegression: Estimator, Predictor {
     // MARK: - Fit
     public mutating func fit(X: MLXArray, y: MLXArray, verbose: Bool) {
 
+        precondition(X.shape.count == 2 && X.shape[1] == inputSize,
+                     "X must have shape [N, inputSize]")
         precondition(y.shape.count == 2 && y.shape[1] == 1,
                      "y must have shape [N, 1]")
+        precondition(y.shape[0] == X.shape[0],
+                     "X and y must have same number of rows")
 
         let optimizer = SGD(learningRate: learningRate)
 
@@ -70,7 +77,9 @@ public struct LogisticRegression: Estimator, Predictor {
 
     // MARK: - Predict probabilities
     public func predictProba(X: MLXArray) -> MLXArray {
-        sigmoid(forward(X))
+        precondition(X.shape.count == 2 && X.shape[1] == inputSize,
+                     "X must have shape [N, inputSize]")
+        return sigmoid(forward(X))
     }
 
     // MARK: - Predict classes (0/1)

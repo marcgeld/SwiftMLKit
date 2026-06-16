@@ -121,11 +121,11 @@ struct swiftmlx {
                  ytrain, ytest),
 
                 ("Random Forest",
-                 RandomForest(nTrees: 20, maxDepth: 5),
+                 RandomForest(nTrees: 20, maxDepth: 5, randomState: 42),
                  ytrain, ytest),
 
                 ("Extra Trees",
-                 ExtraTrees(nTrees: 20, maxDepth: 5),
+                 ExtraTrees(nTrees: 20, maxDepth: 5, randomState: 42),
                  ytrain, ytest),
 
                 ("Gradient Boosting",

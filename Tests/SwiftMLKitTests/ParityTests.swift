@@ -114,7 +114,7 @@ private func loadBreastCancerData() throws -> (X: MLXArray, y: MLXArray) {
 
 private typealias TrainPredict = (_ Xtrain: MLXArray, _ ytrain: MLXArray, _ Xtest: MLXArray) -> MLXArray
 
-private func makeTrainPredict(for algorithm: String, nFeatures: Int) -> TrainPredict? {
+private func makeTrainPredict(for algorithm: String, nFeatures: Int, seed: Int) -> TrainPredict? {
     switch algorithm {
     case "decision_tree":
         return { Xtrain, ytrain, Xtest in
@@ -130,13 +130,13 @@ private func makeTrainPredict(for algorithm: String, nFeatures: Int) -> TrainPre
         }
     case "random_forest":
         return { Xtrain, ytrain, Xtest in
-            var m = RandomForest(nTrees: 100, maxDepth: 5)
+            var m = RandomForest(nTrees: 100, maxDepth: 5, randomState: UInt64(seed))
             m.fit(X: Xtrain, y: ytrain)
             return m.predict(X: Xtest)
         }
     case "extra_trees":
         return { Xtrain, ytrain, Xtest in
-            var m = ExtraTrees(nTrees: 100, maxDepth: 100)
+            var m = ExtraTrees(nTrees: 100, maxDepth: 100, randomState: UInt64(seed))
             m.fit(X: Xtrain, y: ytrain)
             return m.predict(X: Xtest)
         }
@@ -196,7 +196,7 @@ private enum Tol {
 
 // MARK: - Parity Tests
 
-@Suite("Parity")
+@Suite("Parity", CPUDeviceTrait())
 struct ParityTests {
 
     @Test("Decision Tree parity")
@@ -240,7 +240,11 @@ struct ParityTests {
 
         let (X, y) = try loadBreastCancerData()
 
-        guard let trainPredict = makeTrainPredict(for: algorithm, nFeatures: X.shape[1]) else {
+        guard let trainPredict = makeTrainPredict(
+            for: algorithm,
+            nFeatures: X.shape[1],
+            seed: cache.run.seed
+        ) else {
             print("⏭ \(algorithm): no Swift implementation, skipping")
             return
         }
